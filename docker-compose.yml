@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: aegis-postgres
+    environment:
+      POSTGRES_USER: aegis_user
+      POSTGRES_PASSWORD: aegis_password
+      POSTGRES_DB: aegis_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - aegis-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - aegis-network
+
+  redpanda:
+    image: docker.vectorized.io/vectorized/redpanda:latest
+    container_name: aegis-redpanda
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 1G
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr PLAINTEXT://0.0.0.0:28082,OUTSIDE://0.0.0.0:8082
+      - --advertise-pandaproxy-addr PLAINTEXT://redpanda:28082,OUTSIDE://localhost:8082
+    ports:
+      - "9092:9092"
+      - "8082:8082"
+      - "29092:29092"
+      - "28082:28082"
+    networks:
+      - aegis-network
+
+networks:
+  aegis-network:
+    driver: bridge
+
+volumes:
+  pgdata:

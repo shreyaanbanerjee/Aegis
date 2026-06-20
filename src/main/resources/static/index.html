@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aegis — Enterprise AI Privacy Gateway</title>
+  <meta name="description" content="Aegis is a reactive API gateway that masks PII in LLM requests, rehydrates responses, and tracks token usage — all in real time." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Variables ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-void:    #050810;
+      --bg-base:    #090d1a;
+      --bg-card:    #0d1526;
+      --bg-card2:   #111c35;
+      --bg-glass:   rgba(13, 21, 38, 0.7);
+
+      --neon-green: #00ff88;
+      --neon-blue:  #00c8ff;
+      --neon-purple:#a855f7;
+      --neon-red:   #ff4466;
+      --neon-amber: #ffb800;
+
+      --text-primary:   #e2e8f0;
+      --text-secondary: #7a8fa6;
+      --text-muted:     #3d5068;
+
+      --border-dim:    rgba(0, 200, 255, 0.08);
+      --border-glow:   rgba(0, 200, 255, 0.3);
+      --border-green:  rgba(0, 255, 136, 0.3);
+
+      --font-ui:   'Inter', system-ui, sans-serif;
+      --font-code: 'JetBrains Mono', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-ui);
+      background-color: var(--bg-void);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated Background ────────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 0%, rgba(0,200,255,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 80% at 90% 100%, rgba(168,85,247,0.05) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 50% at 50% 50%, rgba(0,255,136,0.02) 0%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Grid Overlay ───────────────────────────────────────────────────────── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border-dim);
+      margin-bottom: 32px;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-green));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 0 20px rgba(0,200,255,0.4);
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(0,200,255,0.4); }
+      50% { box-shadow: 0 0 40px rgba(0,200,255,0.7), 0 0 60px rgba(0,255,136,0.2); }
+    }
+
+    .logo-text h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text p {
+      font-size: 11px;
+      color: var(--text-secondary);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    .header-badges {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      font-family: var(--font-code);
+    }
+
+    .badge-green {
+      background: rgba(0,255,136,0.1);
+      border: 1px solid rgba(0,255,136,0.3);
+      color: var(--neon-green);
+    }
+
+    .badge-blue {
+      background: rgba(0,200,255,0.1);
+      border: 1px solid rgba(0,200,255,0.3);
+      color: var(--neon-blue);
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Section Title ──────────────────────────────────────────────────────── */
+    .section-title {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .section-title h2 {
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: var(--neon-blue);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .section-title p {
+      font-size: 15px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Flow Diagram ───────────────────────────────────────────────────────── */
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 40px;
+      overflow-x: auto;
+      padding: 20px 0;
+    }
+
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      min-width: 100px;
+    }
+
+    .flow-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      border: 1px solid;
+      transition: transform 0.3s ease;
+    }
+
+    .flow-icon:hover { transform: scale(1.1); }
+
+    .flow-icon.auth   { background: rgba(0,200,255,0.1); border-color: rgba(0,200,255,0.4); }
+    .flow-icon.mask   { background: rgba(0,255,136,0.1); border-color: rgba(0,255,136,0.4); }
+    .flow-icon.redis  { background: rgba(255,68,102,0.1); border-color: rgba(255,68,102,0.4); }
+    .flow-icon.proxy  { background: rgba(168,85,247,0.1); border-color: rgba(168,85,247,0.4); }
+    .flow-icon.rehydr { background: rgba(0,200,255,0.1); border-color: rgba(0,200,255,0.4); }
+    .flow-icon.kafka  { background: rgba(255,184,0,0.1); border-color: rgba(255,184,0,0.4); }
+
+    .flow-label {
+      font-size: 10px;
+      text-align: center;
+      color: var(--text-secondary);
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      max-width: 80px;
+    }
+
+    .flow-arrow {
+      color: var(--text-muted);
+      font-size: 18px;
+      margin: 0 4px;
+      margin-bottom: 28px; /* align with icons, not label */
+      flex-shrink: 0;
+    }
+
+    /* ── Main Dashboard Grid ────────────────────────────────────────────────── */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 1100px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── Cards ──────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      border-radius: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.3s ease;
+    }
+
+    .card:hover { border-color: var(--border-glow); }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-dim);
+      background: rgba(0,0,0,0.2);
+    }
+
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-title-icon {
+      font-size: 16px;
+    }
+
+    .card-title-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: 0.3px;
+    }
+
+    .card-subtitle {
+      font-size: 10px;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .card-body {
+      padding: 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /* ── Form Elements ──────────────────────────────────────────────────────── */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+
+    input[type="text"], input[type="password"] {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border-dim);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-family: var(--font-code);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus {
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 0 3px rgba(0,200,255,0.1);
+    }
+
+    textarea {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border-dim);
+      border-radius: 8px;
+      padding: 14px;
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      font-size: 14px;
+      line-height: 1.6;
+      resize: vertical;
+      min-height: 160px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+
+    textarea:focus {
+      border-color: var(--neon-blue);
+      box-shadow: 0 0 0 3px rgba(0,200,255,0.1);
+    }
+
+    .pii-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pii-hint strong { color: var(--neon-amber); font-family: var(--font-code); }
+
+    /* ── Buttons ────────────────────────────────────────────────────────────── */
+    .btn-primary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 13px 24px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      font-size: 14px;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--neon-blue), var(--neon-green));
+      color: #050810;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .btn-primary:hover::before { opacity: 1; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,200,255,0.3); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border-dim);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      background: transparent;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--border-glow);
+      color: var(--text-primary);
+      background: rgba(0,200,255,0.05);
+    }
+
+    /* ── Terminal / Log Panel ───────────────────────────────────────────────── */
+    .terminal {
+      background: #020408;
+      border: 1px solid rgba(0,255,136,0.15);
+      border-radius: 10px;
+      overflow: hidden;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: #060c14;
+      border-bottom: 1px solid rgba(0,255,136,0.1);
+    }
+
+    .term-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .term-dot.red    { background: #ff5f57; }
+    .term-dot.yellow { background: #febc2e; }
+    .term-dot.green  { background: #28c840; }
+
+    .term-title {
+      font-family: var(--font-code);
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-left: 6px;
+    }
+
+    .terminal-body {
+      padding: 14px;
+      font-family: var(--font-code);
+      font-size: 12px;
+      line-height: 1.7;
+      flex: 1;
+      overflow-y: auto;
+      min-height: 260px;
+      max-height: 340px;
+    }
+
+    .terminal-body::-webkit-scrollbar { width: 4px; }
+    .terminal-body::-webkit-scrollbar-track { background: transparent; }
+    .terminal-body::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 2px; }
+
+    .log-line {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 3px;
+      opacity: 0;
+      animation: fade-in-up 0.3s ease forwards;
+    }
+
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .log-time { color: var(--text-muted); flex-shrink: 0; }
+    .log-level { font-weight: 700; flex-shrink: 0; min-width: 48px; }
+    .log-level.INFO  { color: var(--neon-blue); }
+    .log-level.MASK  { color: var(--neon-green); }
+    .log-level.REDIS { color: var(--neon-red); }
+    .log-level.KAFKA { color: var(--neon-amber); }
+    .log-level.OK    { color: var(--neon-green); }
+    .log-level.WARN  { color: var(--neon-amber); }
+    .log-level.ERROR { color: var(--neon-red); }
+
+    .log-msg { color: var(--text-secondary); flex: 1; word-break: break-all; }
+    .log-msg .highlight-green { color: var(--neon-green); font-weight: 600; }
+    .log-msg .highlight-blue  { color: var(--neon-blue);  font-weight: 600; }
+    .log-msg .highlight-amber { color: var(--neon-amber); font-weight: 600; }
+    .log-msg .highlight-red   { color: var(--neon-red);   font-weight: 600; }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 14px;
+      background: var(--neon-green);
+      animation: cursor 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+
+    @keyframes cursor {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── Output Panel ───────────────────────────────────────────────────────── */
+    .output-box {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border-dim);
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text-primary);
+      min-height: 140px;
+      transition: border-color 0.3s;
+      flex: 1;
+    }
+
+    .output-box.has-content { border-color: var(--border-green); }
+
+    .output-placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: 13px;
+    }
+
+    /* ── Stats Row ──────────────────────────────────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: border-color 0.3s;
+    }
+
+    .stat-card:hover { border-color: var(--border-glow); }
+
+    .stat-label {
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-family: var(--font-code);
+      font-size: 26px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      transition: all 0.3s;
+    }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Status pill ────────────────────────────────────────────────────────── */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-code);
+    }
+
+    .status-pill.idle    { background: rgba(100,116,139,0.15); border: 1px solid rgba(100,116,139,0.3); color: #64748b; }
+    .status-pill.running { background: rgba(0,200,255,0.12); border: 1px solid rgba(0,200,255,0.4); color: var(--neon-blue); }
+    .status-pill.success { background: rgba(0,255,136,0.12); border: 1px solid rgba(0,255,136,0.4); color: var(--neon-green); }
+    .status-pill.error   { background: rgba(255,68,102,0.12); border: 1px solid rgba(255,68,102,0.4); color: var(--neon-red); }
+
+    /* ── Masked Preview ─────────────────────────────────────────────────────── */
+    .masked-preview {
+      background: #020408;
+      border: 1px solid rgba(0,255,136,0.2);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: var(--font-code);
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      min-height: 80px;
+      display: none;
+    }
+
+    .masked-preview.visible { display: block; }
+    .masked-preview .token { color: var(--neon-green); font-weight: 700; }
+
+    /* ── Token Map Table ────────────────────────────────────────────────────── */
+    .token-map {
+      display: none;
+      border: 1px solid var(--border-dim);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .token-map.visible { display: block; }
+
+    .token-map-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 8px 14px;
+      background: rgba(0,0,0,0.3);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .token-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--border-dim);
+      font-size: 12px;
+      font-family: var(--font-code);
+      animation: fade-in-up 0.3s ease forwards;
+    }
+
+    .token-row:last-child { border-bottom: none; }
+    .token-key   { color: var(--neon-green); font-weight: 600; }
+    .token-value { color: var(--neon-amber); }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 32px 0 24px;
+      color: var(--text-muted);
+      font-size: 12px;
+      border-top: 1px solid var(--border-dim);
+      margin-top: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    footer a {
+      color: var(--neon-blue);
+      text-decoration: none;
+    }
+
+    /* ── Loading spinner ────────────────────────────────────────────────────── */
+    .spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(0,0,0,0.3);
+      border-top-color: #050810;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-group">
+      <div class="logo-icon">🛡️</div>
+      <div class="logo-text">
+        <h1>AEGIS</h1>
+        <p>Enterprise AI Privacy Gateway</p>
+      </div>
+    </div>
+    <div class="header-badges">
+      <span class="badge badge-green" id="gatewayStatus">
+        <span class="badge-dot"></span> GATEWAY ONLINE
+      </span>
+      <span class="badge badge-blue">Spring WebFlux</span>
+      <span class="badge badge-blue">Redis · Kafka · PostgreSQL</span>
+    </div>
+  </header>
+
+  <!-- Architecture Flow -->
+  <div class="section-title">
+    <h2>Live Data Flow</h2>
+    <p>Watch your request travel through the Aegis privacy pipeline in real time</p>
+  </div>
+
+  <div class="flow-diagram">
+    <div class="flow-step">
+      <div class="flow-icon auth" id="step-auth">🔑</div>
+      <div class="flow-label">Auth &amp; Ingest</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon mask" id="step-mask">🎭</div>
+      <div class="flow-label">PII Masking</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon redis" id="step-redis">💾</div>
+      <div class="flow-label">Redis Vault</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon proxy" id="step-proxy">🚀</div>
+      <div class="flow-label">Proxy to LLM</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon rehydr" id="step-rehydr">♻️</div>
+      <div class="flow-label">Rehydrate</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon kafka" id="step-kafka">📊</div>
+      <div class="flow-label">Kafka Billing</div>
+    </div>
+  </div>
+
+  <!-- Stats Row -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Requests Proxied</div>
+      <div class="stat-value" id="stat-requests">0</div>
+      <div class="stat-sub">This session</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">PII Tokens Masked</div>
+      <div class="stat-value" id="stat-tokens">0</div>
+      <div class="stat-sub">Entities protected</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">LLM Tokens Used</div>
+      <div class="stat-value" id="stat-llm-tokens">0</div>
+      <div class="stat-sub">Billed to department</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Latency</div>
+      <div class="stat-value" id="stat-latency">—</div>
+      <div class="stat-sub">End-to-end ms</div>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div class="dashboard-grid">
+
+    <!-- ── Left: Input Panel ──────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="card-title-icon">✍️</span>
+          <span class="card-title-text">Employee Prompt</span>
+        </div>
+        <span class="status-pill idle" id="input-status">IDLE</span>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label for="apiKey">Department API Key</label>
+          <input type="password" id="apiKey" placeholder="X-API-Key: dept_engineering_..." value="dept_engineering_demo_key_001" />
+        </div>
+
+        <div class="form-group">
+          <label for="promptInput">Prompt (contains PII)</label>
+          <textarea id="promptInput" placeholder="Type a prompt with names, emails, SSNs...">Hi, I need a performance review summary for John Smith (john.smith@acme.com). His employee ID is 123-45-6789 and his direct manager is Sarah Connor at (555) 867-5309. Please draft a brief review for the Q3 cycle.</textarea>
+        </div>
+
+        <div class="pii-hint">
+          💡 Try including: <strong>names</strong>, <strong>emails</strong>, <strong>SSNs</strong>, <strong>phone numbers</strong>
+        </div>
+
+        <div class="form-group">
+          <label>Masked Preview (pre-flight)</label>
+          <div class="masked-preview" id="maskedPreview">
+            <span style="color:var(--text-muted)">Run to see masking…</span>
+          </div>
+        </div>
+
+        <div class="form-group" id="tokenMapContainer" style="display:none">
+          <label>PII Token Map (stored in Redis)</label>
+          <div class="token-map visible" id="tokenMapTable">
+            <div class="token-map-header">
+              <span>Token (Placeholder)</span>
+              <span>Original PII Value</span>
+            </div>
+            <div id="tokenMapRows"></div>
+          </div>
+        </div>
+
+        <button class="btn-primary" id="sendBtn" onclick="sendRequest()">
+          <span class="spinner" id="btn-spinner"></span>
+          <span id="btn-text">🚀 Send Through Aegis Gateway</span>
+        </button>
+
+        <button class="btn-secondary" onclick="loadDemo()">Load Demo Prompt</button>
+      </div>
+    </div>
+
+    <!-- ── Center: Live Terminal ──────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="card-title-icon">🖥️</span>
+          <span class="card-title-text">Aegis Gateway Log</span>
+        </div>
+        <button class="btn-secondary" onclick="clearLogs()">Clear</button>
+      </div>
+      <div class="card-body" style="padding:16px">
+        <div class="terminal">
+          <div class="terminal-bar">
+            <div class="term-dot red"></div>
+            <div class="term-dot yellow"></div>
+            <div class="term-dot green"></div>
+            <span class="term-title">aegis-gateway — reactive-filter-chain</span>
+          </div>
+          <div class="terminal-body" id="terminalBody">
+            <div class="log-line">
+              <span class="log-time">00:00:00</span>
+              <span class="log-level INFO">INFO</span>
+              <span class="log-msg">Aegis Gateway started on port <span class="highlight-blue">8080</span>. Awaiting requests…</span>
+            </div>
+            <div class="log-line">
+              <span class="log-time">00:00:00</span>
+              <span class="log-level INFO">INFO</span>
+              <span class="log-msg">Redis token vault connected. TTL=<span class="highlight-amber">60s</span></span>
+            </div>
+            <div class="log-line">
+              <span class="log-time">00:00:00</span>
+              <span class="log-level INFO">INFO</span>
+              <span class="log-msg">Kafka producer ready. Topic=<span class="highlight-amber">token-usage</span></span>
+            </div>
+            <span class="cursor-blink"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Right: Output Panel ────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="card-title-icon">✅</span>
+          <span class="card-title-text">Rehydrated Response</span>
+        </div>
+        <span class="status-pill idle" id="output-status">AWAITING</span>
+      </div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>LLM Response (PII restored)</label>
+          <div class="output-box" id="outputBox">
+            <span class="output-placeholder">The final, rehydrated response from the LLM will appear here. All [PERSON_N] tokens will be replaced with the original names.</span>
+          </div>
+        </div>
+
+        <div class="form-group" id="rawMaskedContainer" style="display:none">
+          <label>Raw LLM Response (before rehydration)</label>
+          <div class="masked-preview visible" id="rawMaskedOutput"></div>
+        </div>
+
+        <div style="margin-top:auto; padding-top:12px">
+          <div class="form-group">
+            <label>Kafka Billing Event</label>
+            <div class="masked-preview visible" id="kafkaEventBox" style="min-height:60px; display:block; color:var(--text-muted); font-size:11px;">
+              No billing event yet…
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /dashboard-grid -->
+
+</div><!-- /page-wrapper -->
+
+<footer>
+  🛡️ Aegis &mdash; Built with Spring Cloud Gateway · Redis · Kafka · PostgreSQL
+  &nbsp;|&nbsp; Zero PII leaves the perimeter
+</footer>
+
+<script>
+  /* ─────────────────────────────────────────────────────────────────────────
+   * Aegis Demo UI — JavaScript Engine
+   *
+   * Simulates the full Aegis data flow in the browser:
+   *  1. Runs a client-side PII masking preview (mirrors server-side logic)
+   *  2. Makes a real fetch() call to the gateway at /v1/chat/completions
+   *  3. Streams log messages to the terminal as each step completes
+   *  4. Displays the rehydrated response and simulated Kafka event
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let sessionRequests  = 0;
+  let sessionPiiTokens = 0;
+  let sessionLlmTokens = 0;
+  let sessionLatencies = [];
+  let logIndex = 0;
+
+  // ── PII Regex Patterns (mirrors PiiMaskingService.java) ──────────────────
+  const PII_PATTERNS = [
+    { type: 'EMAIL',  regex: /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g },
+    { type: 'SSN',    regex: /\b(?!000|666|9\d{2})\d{3}[-\s]?(?!00)\d{2}[-\s]?(?!0000)\d{4}\b/g },
+    { type: 'CC',     regex: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b/g },
+    { type: 'PHONE',  regex: /(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}/g },
+    { type: 'IP',     regex: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g },
+    { type: 'DATE',   regex: /\b(?:(?:0?[1-9]|1[0-2])[\/\-](?:0?[1-9]|[12]\d|3[01])[\/\-](?:19|20)\d{2})\b/g },
+  ];
+
+  const NAME_DICT = new Set([
+    'James','John','Robert','Michael','William','David','Richard','Joseph','Thomas','Charles',
+    'Christopher','Daniel','Matthew','Anthony','Mark','Donald','Steven','Paul','Andrew','Joshua',
+    'Mary','Patricia','Jennifer','Linda','Barbara','Elizabeth','Susan','Jessica','Sarah','Karen',
+    'Lisa','Nancy','Betty','Margaret','Sandra','Ashley','Dorothy','Kimberly','Emily','Michelle',
+    'Rahul','Priya','Amit','Neha','Vikram','Pooja','Arun','Deepa','Shreya','Arjun',
+    'Smith','Connor','Johnson','Brown','Davis','Wilson','Taylor','Anderson','Thomas'
+  ]);
+
+  function clientSideMask(text) {
+    const tokenMap = {};
+    const typeCounters = {};
+    let masked = text;
+
+    function getToken(type, original) {
+      for (const [k, v] of Object.entries(tokenMap)) {
+        if (v === original) return k;
+      }
+      typeCounters[type] = (typeCounters[type] || 0) + 1;
+      const token = `[${type}_${typeCounters[type]}]`;
+      tokenMap[token] = original;
+      return token;
+    }
+
+    // Regex patterns
+    for (const { type, regex } of PII_PATTERNS) {
+      regex.lastIndex = 0;
+      masked = masked.replace(regex, (match) => getToken(type, match));
+    }
+
+    // Name detection
+    const words = masked.split(/\b/);
+    const nameRegex = new RegExp(`\\b(${[...NAME_DICT].join('|')})(?:\\s+[A-Z][a-z]+)?\\b`);
+    masked = masked.replace(nameRegex, (match) => {
+      // Don't re-tokenize already-tokenized spans
+      if (match.startsWith('[')) return match;
+      return getToken('PERSON', match);
+    });
+
+    return { maskedText: masked, tokenMap };
+  }
+
+  // ── Terminal Logging ──────────────────────────────────────────────────────
+  function now() {
+    return new Date().toLocaleTimeString('en-US', {hour12: false});
+  }
+
+  function log(level, message, delay = 0) {
+    return new Promise(resolve => setTimeout(() => {
+      const body = document.getElementById('terminalBody');
+      // Remove cursor blink if present
+      const oldCursor = body.querySelector('.cursor-blink');
+      if (oldCursor) oldCursor.remove();
+
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.style.animationDelay = '0ms';
+      line.innerHTML = `
+        <span class="log-time">${now()}</span>
+        <span class="log-level ${level}">${level}</span>
+        <span class="log-msg">${message}</span>
+      `;
+      body.appendChild(line);
+
+      // Re-add cursor
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor-blink';
+      body.appendChild(cursor);
+
+      body.scrollTop = body.scrollHeight;
+      resolve();
+    }, delay));
+  }
+
+  function clearLogs() {
+    document.getElementById('terminalBody').innerHTML = `
+      <div class="log-line">
+        <span class="log-time">${now()}</span>
+        <span class="log-level INFO">INFO</span>
+        <span class="log-msg">Log cleared. Gateway still running on port <span class="highlight-blue">8080</span></span>
+      </div>
+      <span class="cursor-blink"></span>
+    `;
+  }
+
+  // ── Flow Step Highlighter ─────────────────────────────────────────────────
+  function highlightStep(stepId, color) {
+    const el = document.getElementById(stepId);
+    if (!el) return;
+    const colorMap = {
+      green:  '0,255,136',
+      blue:   '0,200,255',
+      amber:  '255,184,0',
+      red:    '255,68,102',
+      purple: '168,85,247',
+    };
+    const rgb = colorMap[color] || '0,200,255';
+    el.style.boxShadow = `0 0 20px rgba(${rgb},0.8), 0 0 40px rgba(${rgb},0.4)`;
+    el.style.transform = 'scale(1.15)';
+    setTimeout(() => {
+      el.style.boxShadow = '';
+      el.style.transform = '';
+    }, 2000);
+  }
+
+  // ── Stat Counters ─────────────────────────────────────────────────────────
+  function animateCounter(elId, to) {
+    const el = document.getElementById(elId);
+    const from = parseInt(el.textContent) || 0;
+    const duration = 600;
+    const start = performance.now();
+    function tick(now2) {
+      const t = Math.min((now2 - start) / duration, 1);
+      el.textContent = Math.round(from + (to - from) * t);
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function setStatus(elId, status, label) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.className = `status-pill ${status}`;
+    el.textContent = label;
+  }
+
+  // ── Token Map Display ─────────────────────────────────────────────────────
+  function renderTokenMap(tokenMap) {
+    const rows = document.getElementById('tokenMapRows');
+    rows.innerHTML = '';
+    for (const [token, value] of Object.entries(tokenMap)) {
+      const row = document.createElement('div');
+      row.className = 'token-row';
+      row.innerHTML = `<span class="token-key">${token}</span><span class="token-value">${value}</span>`;
+      rows.appendChild(row);
+    }
+    document.getElementById('tokenMapContainer').style.display = 'block';
+  }
+
+  // ── Masked Preview ────────────────────────────────────────────────────────
+  function renderMaskedPreview(maskedText) {
+    const el = document.getElementById('maskedPreview');
+    const highlighted = maskedText.replace(/\[(\w+_\d+)\]/g,
+      '<span class="token">[$1]</span>');
+    el.innerHTML = highlighted;
+    el.classList.add('visible');
+  }
+
+  // ── Main Request Handler ──────────────────────────────────────────────────
+  async function sendRequest() {
+    const apiKey  = document.getElementById('apiKey').value.trim();
+    const prompt  = document.getElementById('promptInput').value.trim();
+
+    if (!prompt) { alert('Please enter a prompt.'); return; }
+
+    // ── UI Setup ──────────────────────────────────────────────────────────
+    const btn       = document.getElementById('sendBtn');
+    const spinner   = document.getElementById('btn-spinner');
+    const btnText   = document.getElementById('btn-text');
+
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    btnText.textContent = 'Processing…';
+
+    setStatus('input-status', 'running', 'PROCESSING');
+    setStatus('output-status', 'running', 'WAITING');
+
+    document.getElementById('outputBox').innerHTML =
+      '<span class="output-placeholder">Processing through Aegis pipeline…</span>';
+    document.getElementById('outputBox').classList.remove('has-content');
+    document.getElementById('rawMaskedContainer').style.display = 'none';
+    document.getElementById('kafkaEventBox').textContent = 'Awaiting Kafka event…';
+
+    const startTime = Date.now();
+
+    try {
+      // ── Step 1: Auth ──────────────────────────────────────────────────
+      await log('INFO', `Inbound POST <span class="highlight-blue">/v1/chat/completions</span>`, 0);
+      await log('INFO', `ApiKeyAuthFilter: validating X-API-Key=****<span class="highlight-green">${apiKey.slice(-4)}</span>`, 300);
+      highlightStep('step-auth', 'blue');
+      await sleep(500);
+      await log('OK',   `Department authenticated: <span class="highlight-green">Engineering</span> | correlationId=<span class="highlight-amber">${shortId()}</span>`, 200);
+
+      // ── Step 2: PII Masking ───────────────────────────────────────────
+      highlightStep('step-mask', 'green');
+      await log('MASK', `PiiMaskingService: scanning prompt (${prompt.length} chars)…`, 300);
+
+      const { maskedText, tokenMap } = clientSideMask(prompt);
+      const tokenCount = Object.keys(tokenMap).length;
+
+      renderMaskedPreview(maskedText);
+      renderTokenMap(tokenMap);
+
+      for (const [token, val] of Object.entries(tokenMap)) {
+        await log('MASK',
+          `Masking '<span class="highlight-red">${val.substring(0, 30)}</span>' → <span class="highlight-green">${token}</span>`,
+          100);
+      }
+      await log('MASK', `Masking complete: <span class="highlight-green">${tokenCount}</span> PII entities protected`, 200);
+
+      // ── Step 3: Redis Store ───────────────────────────────────────────
+      highlightStep('step-redis', 'red');
+      await log('REDIS', `TokenVaultService: storing ${tokenCount} tokens in Redis Hash…`, 200);
+      await sleep(300);
+      await log('REDIS', `Vault stored. TTL=<span class="highlight-amber">60s</span>. Key=<span class="highlight-amber">aegis:vault:${shortId()}</span>`, 300);
+
+      // ── Step 4: Proxy to LLM ──────────────────────────────────────────
+      highlightStep('step-proxy', 'purple');
+      await log('INFO', `Forwarding sanitized request → <span class="highlight-blue">api.openai.com/v1/chat/completions</span>`, 200);
+      await log('INFO', `Injecting Authorization: Bearer sk-****<span class="highlight-green">xxxx</span> (gateway-managed key)`, 100);
+
+      // ── Real or Simulated API Call ────────────────────────────────────
+      let responseText, promptTokens, completionTokens, totalTokensUsed;
+
+      try {
+        // Real gateway call — works when the gateway is running locally
+        const response = await fetch('/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 300,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        responseText      = data.choices?.[0]?.message?.content || '[No response]';
+        promptTokens      = data.usage?.prompt_tokens      || 0;
+        completionTokens  = data.usage?.completion_tokens  || 0;
+        totalTokensUsed   = data.usage?.total_tokens        || 0;
+
+      } catch (fetchErr) {
+        // Gateway not running locally — simulate a realistic response
+        await log('WARN', `Gateway not reachable (${fetchErr.message}) — running simulation mode`, 200);
+
+        responseText = generateSimulatedResponse(maskedText, tokenMap);
+        promptTokens     = Math.floor(prompt.split(' ').length * 1.3);
+        completionTokens = Math.floor(responseText.split(' ').length * 1.3);
+        totalTokensUsed  = promptTokens + completionTokens;
+
+        // Simulate round-trip latency
+        await sleep(1200);
+      }
+
+      await log('OK', `LLM responded: HTTP <span class="highlight-green">200</span>`, 100);
+
+      // ── Step 5: Rehydration ───────────────────────────────────────────
+      highlightStep('step-rehydr', 'blue');
+      await log('INFO', `Intercepting response body for rehydration…`, 200);
+
+      // Show the raw masked version for demo effect
+      document.getElementById('rawMaskedContainer').style.display = 'block';
+      document.getElementById('rawMaskedOutput').innerHTML =
+        responseText.replace(/\[(\w+_\d+)\]/g, '<span class="token">[$1]</span>');
+
+      await sleep(500);
+
+      // Perform client-side rehydration (mirrors server-side logic)
+      let rehydrated = responseText;
+      for (const [token, original] of Object.entries(tokenMap)) {
+        rehydrated = rehydrated.split(token).join(original);
+      }
+
+      await log('OK', `Rehydration complete: replaced <span class="highlight-green">${tokenCount}</span> tokens`, 300);
+      await log('OK', `Returning clean response to client (PII restored)`, 200);
+
+      // Update output panel
+      document.getElementById('outputBox').innerHTML =
+        `<p style="color:var(--text-primary)">${rehydrated.replace(/\n/g, '<br>')}</p>`;
+      document.getElementById('outputBox').classList.add('has-content');
+      setStatus('output-status', 'success', 'COMPLETE');
+
+      // ── Step 6: Kafka Event ───────────────────────────────────────────
+      highlightStep('step-kafka', 'amber');
+      const latencyMs = Date.now() - startTime;
+      const correlationId = crypto.randomUUID();
+
+      const kafkaEvent = {
+        correlationId,
+        apiKey: apiKey.slice(0, 4) + '****',
+        modelUsed: 'gpt-4o-mini',
+        promptTokens,
+        completionTokens,
+        totalTokens: totalTokensUsed,
+        sanitizedPromptExcerpt: maskedText.substring(0, 100) + '…',
+        upstreamStatusCode: 200,
+        latencyMs,
+        eventTimestamp: Date.now(),
+      };
+
+      document.getElementById('kafkaEventBox').innerHTML =
+        `<span style="color:var(--neon-amber)">▶ topic: token-usage | partition: 0</span>\n` +
+        JSON.stringify(kafkaEvent, null, 2)
+          .replace(/"([^"]+)":/g, '<span style="color:var(--neon-blue)">"$1"</span>:')
+          .replace(/: "([^"]+)"/g, ': <span style="color:var(--neon-green)">"$1"</span>');
+      document.getElementById('kafkaEventBox').style.whiteSpace = 'pre';
+
+      await log('KAFKA', `Published billing event → topic=<span class="highlight-amber">token-usage</span>`, 200);
+      await log('KAFKA', `tokens=<span class="highlight-amber">${totalTokensUsed}</span> | latency=<span class="highlight-green">${latencyMs}ms</span>`, 100);
+      await log('INFO',  `BillingKafkaConsumer: deducting <span class="highlight-amber">${totalTokensUsed}</span> tokens from department quota`, 400);
+      await log('OK',    `Audit record persisted to PostgreSQL`, 300);
+
+      // ── Update Stats ──────────────────────────────────────────────────
+      sessionRequests++;
+      sessionPiiTokens += tokenCount;
+      sessionLlmTokens += totalTokensUsed;
+      sessionLatencies.push(latencyMs);
+      const avgLatency = Math.round(
+        sessionLatencies.reduce((a, b) => a + b, 0) / sessionLatencies.length);
+
+      animateCounter('stat-requests',  sessionRequests);
+      animateCounter('stat-tokens',    sessionPiiTokens);
+      animateCounter('stat-llm-tokens', sessionLlmTokens);
+      document.getElementById('stat-latency').textContent = `${avgLatency}ms`;
+
+      setStatus('input-status', 'success', 'DONE');
+      await log('OK', `━━ Request completed in <span class="highlight-green">${latencyMs}ms</span> ━━`, 300);
+
+    } catch (err) {
+      await log('ERROR', `Unhandled error: ${err.message}`, 0);
+      setStatus('input-status', 'error', 'ERROR');
+      setStatus('output-status', 'error', 'FAILED');
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      btnText.textContent = '🚀 Send Through Aegis Gateway';
+    }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+  function shortId()  { return crypto.randomUUID().substring(0, 8); }
+
+  function generateSimulatedResponse(maskedPrompt, tokenMap) {
+    // Generate a realistic response that uses the token placeholders,
+    // so rehydration is visually demonstrable
+    const personTokens = Object.entries(tokenMap)
+      .filter(([k]) => k.startsWith('[PERSON'))
+      .map(([k]) => k);
+    const emailTokens = Object.entries(tokenMap)
+      .filter(([k]) => k.startsWith('[EMAIL'))
+      .map(([k]) => k);
+
+    const person = personTokens[0] || '[the employee]';
+    const email  = emailTokens[0]  || '[their email]';
+
+    return `Q3 Performance Review Summary for ${person}
+
+Dear Manager,
+
+This review summarizes ${person}'s contributions during Q3. ${person} has demonstrated strong technical leadership and consistently delivered high-quality work ahead of deadlines.
+
+Key achievements this quarter:
+• Led the migration of the billing service to a microservices architecture
+• Reduced API response latency by 40% through Redis caching implementation
+• Mentored 2 junior engineers, accelerating their onboarding significantly
+
+Areas for development:
+• Opportunity to improve cross-team documentation practices
+• Encouraged to take more initiative in architectural design meetings
+
+Overall rating: Exceeds Expectations (4.2 / 5.0)
+
+Please direct any follow-up questions to ${email}.
+
+— Automated Performance Review System`;
+  }
+
+  function loadDemo() {
+    document.getElementById('promptInput').value =
+      `Please summarize the medical history for patient Sarah Johnson (DOB: 03/15/1985). ` +
+      `Her SSN is 456-78-9012 and can be reached at sarah.johnson@hospital.org or (415) 555-0192. ` +
+      `Her billing goes to account 4111111111111111. Her IP is 192.168.1.45.`;
+  }
+
+  // ── Auto preview on load ──────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', () => {
+    // Animate stats from zero
+    setTimeout(() => {
+      log('INFO', 'Demo UI loaded. Click <span class="highlight-green">Send Through Aegis Gateway</span> to begin.', 0);
+    }, 500);
+  });
+</script>
+</body>
+</html>

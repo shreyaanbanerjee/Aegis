@@ -1,0 +1,102 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: aegis
+
+  # ── PostgreSQL (Neon.tech / local Docker) ──────────────────────────────────
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aegis_db}
+    username: ${DB_USERNAME:aegis_user}
+    password: ${DB_PASSWORD:aegis_password}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 600000
+      connection-test-query: SELECT 1
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ── Redis (Upstash / local Docker) ─────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL_ENABLED:false}
+      timeout: 5000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 4
+          min-idle: 1
+
+  # ── Kafka (Upstash / local Redpanda) ───────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS:localhost:9092}
+    properties:
+      sasl.jaas.config: ${KAFKA_SASL_JAAS_CONFIG:}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+    consumer:
+      group-id: aegis-billing-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
+
+# ── Aegis Application Config ─────────────────────────────────────────────────
+aegis:
+  # OpenAI proxy config — OPENAI_API_KEY must be set in production
+  openai:
+    api-key: ${OPENAI_API_KEY:sk-replace-me}
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+
+  # Token vault TTL — how long (seconds) PII tokens are stored in Redis
+  vault:
+    ttl-seconds: ${VAULT_TTL_SECONDS:60}
+
+  # Rate limiter — per-department token bucket configuration
+  rate-limit:
+    replenish-rate: ${RATE_LIMIT_REPLENISH_RATE:10}  # requests/second
+    burst-capacity: ${RATE_LIMIT_BURST_CAPACITY:20}   # max burst
+    requested-tokens: ${RATE_LIMIT_REQUESTED_TOKENS:1}
+
+  # Kafka topic names
+  kafka:
+    topics:
+      token-usage: ${KAFKA_TOPIC_TOKEN_USAGE:token-usage}
+
+# ── Actuator ─────────────────────────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging:
+  level:
+    com.enterprise.aegis: ${LOG_LEVEL:INFO}
+    org.springframework.cloud.gateway: WARN
+    org.springframework.data.redis: WARN
+    org.apache.kafka: WARN
